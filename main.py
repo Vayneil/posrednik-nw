@@ -30,12 +30,11 @@ def is_odd(arr):
 
 
 def all_profit(solution, profit):
-    profit = 0
+    result = 0
     for i in range(0, solution.shape[0]):
         for j in range(0, solution.shape[1]):
-            profit += solution[i][j] * profit[i][j]
-
-    return profit
+            result += solution[i][j] * profit[i][j]
+    return result
 
 
 # TODO: Dynamic arrays linked to GUI
