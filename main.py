@@ -199,15 +199,6 @@ while not optimal:
 
     least_optimal = np.unravel_index(optimality.argmax(), optimality.shape)
 
-    even_rows = np.zeros(optimality.shape[0])
-    even_cols = np.zeros(optimality.shape[1])
-
-    even_rows[least_optimal[0]] += 1
-    even_cols[least_optimal[1]] += 1
-
-    recent_row = least_optimal[0]
-    recent_col = least_optimal[1]
-
     cycle = get_loop(bv_positions, least_optimal)
 
     file.write("CYKL: \n")
