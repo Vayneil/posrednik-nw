@@ -1,4 +1,48 @@
 import numpy as np
+import csv
+
+with open('file.csv', 'r') as f:
+    reader = csv.reader(f)
+    your_list = list(reader)
+
+
+def get_loop(bv_positions, ev_position):
+    def inner(loop):
+        if len(loop) > 3:
+            can_be_closed = len(get_possible_next_nodes(loop, [ev_position])) == 1
+            if can_be_closed:
+                return loop
+
+        not_visited = list(set(bv_positions) - set(loop))
+        possible_next_nodes = get_possible_next_nodes(loop, not_visited)
+        for next_node in possible_next_nodes:
+            new_loop = inner(loop + [next_node])
+            if new_loop:
+                return new_loop
+
+    return inner([ev_position])
+
+
+def get_possible_next_nodes(loop, not_visited):
+    last_node = loop[-1]
+    nodes_in_row = [n for n in not_visited if n[0] == last_node[0]]
+    nodes_in_column = [n for n in not_visited if n[1] == last_node[1]]
+    if len(loop) < 2:
+        return nodes_in_row + nodes_in_column
+    else:
+        prev_node = loop[-2]
+        row_move = prev_node[0] == last_node[0]
+        if row_move:
+            return nodes_in_column
+        return nodes_in_row
+
+
+def same_line(arr, lowest_number):
+    result = sum(map(lambda x: x == np.NINF or x == lowest_number, arr))
+    if result > 1:
+        return True
+    else:
+        return False
 
 
 def nw_corner(cost, demand, supply):
@@ -37,7 +81,9 @@ def all_profit(solution, profit):
     return result
 
 
-# TODO: Dynamic arrays linked to GUI
+# Writing to file
+file = open("wyniki.txt", "w")
+
 # Initial data
 cost = np.array([[8, 14, 17], [12, 9, 19]])
 demand = np.array([10, 28, 27])
@@ -68,20 +114,27 @@ for i in range(0, cost_rows):
 
 # IBFS (Initial basic feasible solution) - North-West corner method
 solution = nw_corner(cost, demand, supply)
-print(solution)
+file.write("Pierwsze rozwiązanie metodą wierzchołka północno-zachodniego:\n")
+file.writelines(str(solution))
+file.write("\n\n")
 
 optimal = False
+iteration = 0
 
 while not optimal:
     # Optimality test using MODI method (Modified Distribution method)
     # Step 1: alpha and beta values
+    iteration += 1
+    str_iter = "###### ITERACJA: " + str(iteration) + " ######"
+    file.write(str_iter)
+    file.write("\n\n")
     solution_rows = solution.shape[0]
     solution_cols = solution.shape[1]
     alpha = np.empty(solution_rows)
     beta = np.empty(solution_cols)
     alpha[0] = 0
-    base_profit = np.full(profit.shape, np.inf)
-    optimality = np.full(profit.shape, np.inf)
+    base_profit = np.full(profit.shape, np.NINF)
+    optimality = np.full(profit.shape, np.NINF)
     for i in range(0, solution_rows):
         for j in range(0, solution_cols):
             if solution[i][j] != 0:
@@ -95,7 +148,7 @@ while not optimal:
 
     for i in range(0, solution_rows):
         for j in range(0, solution_cols):
-            if base_profit[i][j] != np.inf:
+            if base_profit[i][j] != np.NINF:
                 b.append(base_profit[i][j])
                 c = np.zeros(num_of_equations)
                 if i != 0:
@@ -113,27 +166,39 @@ while not optimal:
         else:
             beta[i - alpha.shape[0] + 1] = x[i]
 
-    print(alpha)
-    print(beta)
+    file.write("ALFA:\n")
+    file.writelines(str(alpha))
+    file.write("\n\n")
+
+    file.write("BETA:\n")
+    file.writelines(str(beta))
+    file.write("\n\n")
 
     optimal = True
 
     for i in range(0, solution_rows):
         for j in range(0, solution_cols):
             optimality[i][j] -= alpha[i] + beta[j]
-            if optimality[i][j] < 0:
+            if optimality[i][j] > 0:
                 optimal = False
 
+    file.write("ZMIENNE KRYTERIALNE: \n")
+    file.writelines(str(optimality))
+    file.write("\n\n")
+
+    bv_positions = []
+    for i in range(0, solution_rows):
+        for j in range(0, solution_cols):
+            if optimality[i][j] == np.NINF:
+                bv_positions.append((i, j))
+
     if optimal:
-        print(all_profit(solution, profit))
+        file.write("ROZWIĄZANIE OPTYMALNE! \n")
+        file.write("ZYSK: " + str(all_profit(solution, profit)))
         break
 
-    print(optimality)
-    least_optimal = np.unravel_index(optimality.argmin(), optimality.shape)
+    least_optimal = np.unravel_index(optimality.argmax(), optimality.shape)
 
-    print(least_optimal)
-
-    cycle = [least_optimal]
     even_rows = np.zeros(optimality.shape[0])
     even_cols = np.zeros(optimality.shape[1])
 
@@ -143,35 +208,11 @@ while not optimal:
     recent_row = least_optimal[0]
     recent_col = least_optimal[1]
 
-    print("eeeeeee")
+    cycle = get_loop(bv_positions, least_optimal)
 
-    while is_odd(even_rows) or is_odd(even_cols):
-        if is_odd(even_rows):
-            # next_node_row = np.where(even_rows == 1)[0][0]
-            next_node_row = recent_row
-            col_candidates = np.where(even_cols < 2)[0]
-            for c in col_candidates:
-                if optimality[next_node_row][c] == np.inf and (next_node_row, c) != least_optimal:
-                    next_node_col = c
-                    recent_col = c
-                    even_rows[next_node_row] += 1
-                    even_cols[next_node_col] += 1
-                    cycle.append((next_node_row, next_node_col))
-                    print(cycle)
-                    break
-        else:
-            next_node_col = recent_col
-            row_candidates = np.where(even_rows < 2)[0]
-            for c in row_candidates:
-                if optimality[c][next_node_col] == np.inf and (c, next_node_col) != least_optimal:
-                    next_node_row = c
-                    recent_row = c
-                    even_rows[next_node_row] += 1
-                    even_cols[next_node_col] += 1
-                    cycle.append((next_node_row, next_node_col))
-                    print(cycle)
-                    break
-    print(cycle)
+    file.write("CYKL: \n")
+    file.writelines(str(cycle))
+    file.write("\n\n")
 
     least_optimal_index = cycle.index(least_optimal)
     add_n_subtract = []
@@ -184,7 +225,8 @@ while not optimal:
     subtract_minimum = []
     for i in range(len(add_n_subtract)):
         if not add_n_subtract[i]:
-            subtract_minimum.append(solution[cycle[i]])
+            if solution[cycle[i]] > 0:
+                subtract_minimum.append(solution[cycle[i]])
 
     subtract_minimum = np.amin(subtract_minimum)
 
@@ -194,19 +236,8 @@ while not optimal:
         else:
             solution[cycle[i]] -= subtract_minimum
 
-    print(solution)
+    file.write("NOWY WYNIK:\n")
+    file.writelines(str(solution))
+    file.write("\n\n")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+file.close()
